@@ -13,7 +13,8 @@ export const login = (req, res) => {
         if (!validPassword) return res.status(400).json({ error: "Invalid password." });
 
         const token = jwt.sign({ id: admin.id, username: admin.username }, process.env.JWT_SECRET, { expiresIn: '12h' });
-        res.cookie('admin_token', token, { httpOnly: true, secure: false, maxAge: 12 * 3600000 });
+        const isProduction = process.env.NODE_ENV === 'production';
+        res.cookie('admin_token', token, { httpOnly: true, secure: isProduction, sameSite: isProduction ? 'none' : 'lax', maxAge: 12 * 3600000 });
         res.json({ success: true });
     });
 };

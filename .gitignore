@@ -7,6 +7,8 @@ backend/node_modules/
 image-cache/
 
 *.db
+!production.db
+!backend/production.db
 
 dist/
 build/

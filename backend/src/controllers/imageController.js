@@ -4,8 +4,18 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CACHE_DIR = path.resolve(__dirname, '../../../image-cache');
-if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
+
+// On Vercel (production), the filesystem is read-only except /tmp
+// Use /tmp for image caching in production, local image-cache dir in development
+const CACHE_DIR = process.env.NODE_ENV === 'production'
+    ? '/tmp/image-cache'
+    : path.resolve(__dirname, '../../../image-cache');
+
+try {
+    if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
+} catch (e) {
+    console.warn('Could not create image cache directory:', e.message);
+}
 
 /**
  * Serves a Drive file — from disk cache if available, otherwise downloads from Drive
@@ -15,9 +25,13 @@ async function serveFile(fileId, res) {
     const cachedPath = path.join(CACHE_DIR, `${fileId}.jpg`);
 
     // ✅ Serve instantly from cache on subsequent requests
-    if (fs.existsSync(cachedPath)) {
-        res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' });
-        return fs.createReadStream(cachedPath).pipe(res);
+    try {
+        if (fs.existsSync(cachedPath)) {
+            res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' });
+            return fs.createReadStream(cachedPath).pipe(res);
+        }
+    } catch (e) {
+        // Cache read failed, fall through to fresh download
     }
 
     // 🌐 First request: download from Drive
@@ -28,26 +42,39 @@ async function serveFile(fileId, res) {
 
     res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' });
 
-    const cacheStream = fs.createWriteStream(cachedPath);
     const stream = driveRes.data;
+    let cacheStream = null;
+
+    // Try to open a cache write stream, but gracefully continue if it fails
+    try {
+        cacheStream = fs.createWriteStream(cachedPath);
+    } catch (e) {
+        console.warn(`Cache write stream failed for ${fileId}:`, e.message);
+    }
 
     // Manually tee the stream into both the HTTP response and the disk cache
     stream.on('data', (chunk) => {
         res.write(chunk);
-        cacheStream.write(chunk);
+        if (cacheStream) cacheStream.write(chunk);
     });
 
     stream.on('end', () => {
         res.end();
-        cacheStream.end();
-        console.log(`✅ Cached: ${fileId}`);
+        if (cacheStream) {
+            cacheStream.end();
+            console.log(`✅ Cached: ${fileId}`);
+        }
     });
 
     stream.on('error', (err) => {
         console.error(`❌ Stream error for ${fileId}:`, err.message);
-        cacheStream.destroy();
-        // Delete incomplete cache file
-        if (fs.existsSync(cachedPath)) fs.unlinkSync(cachedPath);
+        if (cacheStream) {
+            cacheStream.destroy();
+            // Delete incomplete cache file
+            try {
+                if (fs.existsSync(cachedPath)) fs.unlinkSync(cachedPath);
+            } catch (e) { /* ignore */ }
+        }
         if (!res.headersSent) res.status(500).end();
     });
 }

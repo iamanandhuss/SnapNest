@@ -21,7 +21,8 @@ export const registerClient = async (req, res) => {
                 if (err) return res.status(500).json({ error: err.message });
                 
                 const token = jwt.sign({ id: this.lastID, name, eventId }, process.env.JWT_SECRET, { expiresIn: '12h' });
-                res.cookie('client_token', token, { httpOnly: true, secure: false, maxAge: 12 * 3600000 });
+                const isProduction = process.env.NODE_ENV === 'production';
+                res.cookie('client_token', token, { httpOnly: true, secure: isProduction, sameSite: isProduction ? 'none' : 'lax', maxAge: 12 * 3600000 });
                 res.json({ success: true });
             }
         );
@@ -39,7 +40,8 @@ export const loginClient = (req, res) => {
         if (!valid) return res.status(400).json({ error: "Invalid credentials." });
 
         const token = jwt.sign({ id: client.id, name: client.name, eventId }, process.env.JWT_SECRET, { expiresIn: '12h' });
-        res.cookie('client_token', token, { httpOnly: true, secure: false, maxAge: 12 * 3600000 });
+        const isProduction = process.env.NODE_ENV === 'production';
+        res.cookie('client_token', token, { httpOnly: true, secure: isProduction, sameSite: isProduction ? 'none' : 'lax', maxAge: 12 * 3600000 });
         res.json({ success: true });
     });
 };
