@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Engine & Client Choice Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans">
+
+    <!-- ADMIN LOGIN VIEW -->
+    <div id="view-admin-login" class="hidden max-w-md mx-auto mt-24 p-8 bg-white rounded-2xl shadow-xl border border-slate-100">
+        <h2 class="text-2xl font-black text-center text-slate-900 mb-6">Admin Secure Login</h2>
+        <form id="admin-login-form" class="space-y-4">
+            <div>
+                <label class="block text-sm font-semibold mb-1 text-slate-600">Username</label>
+                <input type="text" id="admin-user" required class="w-full border border-slate-200 p-2.5 rounded-lg focus:outline-emerald-500">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold mb-1 text-slate-600">Password</label>
+                <input type="password" id="admin-pass" required class="w-full border border-slate-200 p-2.5 rounded-lg focus:outline-emerald-500">
+            </div>
+            <button type="submit" class="w-full bg-slate-900 text-white font-bold p-3 rounded-lg hover:bg-slate-800 transition-colors">Authenticate</button>
+        </form>
+    </div>
+
+    <!-- ADMIN CONTROL INTERFACE PANEL -->
+    <div id="view-admin-dashboard" class="hidden max-w-5xl mx-auto p-6">
+        <div class="flex justify-between items-center mb-8 border-b pb-4">
+            <h1 class="text-3xl font-black text-slate-900">System Admin Dashboard</h1>
+            <button onclick="logoutAdmin()" class="bg-rose-50 text-rose-600 font-bold px-4 py-2 rounded-lg hover:bg-rose-100 transition-colors">Logout</button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 md:col-span-1 h-fit">
+                <h2 class="text-lg font-bold mb-4 text-slate-900">Create New Gallery Link</h2>
+                <form id="event-form" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Event Title</label>
+                        <input type="text" id="event-title" required placeholder="e.g. Wedding Shoot" class="w-full border p-2 rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Google Drive URL / Folder ID</label>
+                        <input type="text" id="event-url" required placeholder="Paste folder share link" class="w-full border p-2 rounded-lg text-sm">
+                    </div>
+                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors">Generate Access Link</button>
+                </form>
+                <div id="link-output" class="mt-4 p-3 bg-emerald-50 text-emerald-800 font-mono text-xs rounded-lg break-all hidden"></div>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 md:col-span-2">
+                <h2 class="text-lg font-bold mb-4 text-slate-900">Customer Preferences (Sorted Analytics)</h2>
+                <div class="overflow-x-auto text-sm">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-500 uppercase text-xs font-bold">
+                                <th class="p-3 border-b">Event Slug</th>
+                                <th class="p-3 border-b">Filename</th>
+                                <th class="p-3 border-b text-center">Likes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="analytics-rows" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CUSTOMER ACCESS SIGN IN SCREEN -->
+    <div id="view-customer-login" class="hidden max-w-md mx-auto mt-24 p-8 bg-white rounded-2xl shadow-xl border border-slate-100">
+        <h2 class="text-2xl font-black text-center text-slate-900 mb-2">View Private Gallery</h2>
+        <p class="text-slate-400 text-center text-sm mb-6">Enter your details to view the photos and select your favorites.</p>
+        <form id="customer-login-form" class="space-y-4">
+            <input type="hidden" id="login-slug">
+            <div>
+                <label class="block text-sm font-semibold mb-1 text-slate-600">Full Name</label>
+                <input type="text" id="user-name" required class="w-full border border-slate-200 p-2.5 rounded-lg focus:outline-blue-500">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold mb-1 text-slate-600">Email Address</label>
+                <input type="email" id="user-email" required class="w-full border border-slate-200 p-2.5 rounded-lg focus:outline-blue-500">
+            </div>
+            <button type="submit" class="w-full bg-blue-600 text-white font-bold p-3 rounded-lg hover:bg-blue-700 transition-colors">Access Gallery</button>
+        </form>
+    </div>
+
+    <!-- CUSTOMER GALLERY ENGINE GRID -->
+    <div id="view-gallery" class="hidden max-w-6xl mx-auto p-6">
+        <header class="mb-8 border-b pb-4">
+            <h1 id="gallery-title" class="text-3xl font-black text-slate-900">Loading Client Portal...</h1>
+            <p class="text-slate-400 text-sm mt-1">Click the ❤️ reaction icon to instantly register your choice parameters.</p>
+        </header>
+        <div id="gallery-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6"></div>
+    </div>
+
+    <script>
+        const pathName = window.location.pathname;
+        const urlParams = new URLSearchParams(window.location.search);
+        const loggedInUser = urlParams.get('user');
+
+        // Routing Logic Engine Execution
+        async function routePage() {
+            if (pathName === '/admin') {
+                const verifyRes = await fetch('/api/admin/verify');
+                if (verifyRes.ok) {
+                    document.getElementById('view-admin-dashboard').classList.remove('hidden');
+                    loadAdminAnalytics();
+                } else {
+                    document.getElementById('view-admin-login').classList.remove('hidden');
+                }
+            } else if (pathName.startsWith('/event/')) {
+                const eventSlug = pathName.split('/')[2];
+                if (!loggedInUser) {
+                    document.getElementById('view-customer-login').classList.remove('hidden');
+                    document.getElementById('login-slug').value = eventSlug;
+                } else {
+                    document.getElementById('view-gallery').classList.remove('hidden');
+                    loadGalleryGrid(eventSlug, loggedInUser);
+                }
+            } else {
+                window.location.href = '/admin';
+            }
+        }
+
+        // Admin Handlers
+        document.getElementById('admin-login-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const res = await fetch('/api/admin/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json' },
+                body: JSON.stringify({username: document.getElementById('admin-user').value, password: document.getElementById('admin-pass').value })
+            });
+            if (res.ok) window.location.reload();
+            else alert("Authentication failed. Check your admin password.");
+        };
+
+        async function logoutAdmin() {
+            await fetch('/api/admin/logout', { method: 'POST' });
+            window.location.reload();
+        }
+
+        document.getElementById('event-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const res = await fetch('/api/admin/events', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json' },
+                body: JSON.stringify({title: document.getElementById('event-title').value, drive_url: document.getElementById('event-url').value })
+            });
+            const data = await res.json();
+            if(data.success) {
+                const out = document.getElementById('link-output');
+                out.textContent = `Share URL: ${window.location.origin}${data.shareableLink}`;
+                out.classList.remove('hidden');
+            } else alert(data.error);
+        };
+
+        async function loadAdminAnalytics() {
+            const res = await fetch('/api/admin/analytics');
+            const data = await res.json();
+            document.getElementById('analytics-rows').innerHTML = data.map(row => `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="p-3 border-b font-semibold text-blue-600 text-xs">/event/${row.event_slug}</td>
+                    <td class="p-3 border-b font-mono text-xs text-slate-600">${row.image_name}</td>
+                    <td class="p-3 border-b text-center font-bold text-rose-600">❤️ ${row.total_likes}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Customer Registration Flow
+        document.getElementById('customer-login-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const slug = document.getElementById('login-slug').value;
+            const res = await fetch('/api/customer/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json' },
+                body: JSON.stringify({name: document.getElementById('user-name').value, email: document.getElementById('user-email').value, redirectSlug: slug })
+            });
+            const data = await res.json();
+            window.location.href = data.redirectUrl;
+        };
+
+        // Client Interactions Render
+        async function loadGalleryGrid(slug, userId) {
+            const res = await fetch(`/api/event/${slug}/photos?userId=${userId}`);
+            if (!res.ok) {
+                document.getElementById('gallery-title').textContent = "Gallery not accessible.";
+                return;
+            }
+            const data = await res.json();
+            document.getElementById('gallery-title').textContent = data.eventTitle;
+
+            const grid = document.getElementById('gallery-grid');
+            grid.innerHTML = data.photos.map(photo => `
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col justify-between group hover:shadow-md transition-shadow">
+                    <div class="overflow-hidden bg-slate-100 aspect-[4/3]">
+                        <img src="${photo.thumbnail}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                    </div>
+                    <div class="p-4 flex justify-between items-center bg-white border-t border-slate-50">
+                        <span class="text-xs truncate font-mono text-slate-400 max-w-[140px]">${photo.name}</span>
+                        <button onclick="likePhoto('${slug}', ${userId}, '${photo.name}', this)" ${photo.hasLiked ? 'disabled' : ''} class="px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${photo.hasLiked ? 'bg-rose-50 text-rose-500 cursor-not-allowed' : 'bg-slate-100 hover:bg-rose-50 hover:text-rose-500'}">❤️ ${photo.hasLiked ? 'Saved Preference' : 'Like'}</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function likePhoto(slug, customerId, imageName, btn) {
+            const res = await fetch(`/api/event/${slug}/like`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json' },
+                body: JSON.stringify({customerId, imageName})
+            });
+            if(res.ok) {
+                btn.className = "px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-rose-50 text-rose-500 cursor-not-allowed";
+                btn.querySelector('span:last-child').textContent = 'Saved Preference';
+                btn.disabled = true;
+                btn.onclick = null;
+            }
+        }
+
+        routePage();
+    </script>
+</body>
+</html>
